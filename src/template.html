@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>塗鴉音符劍豪 — 禹承老師音樂課</title>
+  <!-- =====================================================================
+       🎵 戰鬥背景音樂輪播設定（部署時將 3 個音檔放入對應路徑即可自動播放！）
+       預設路徑為同資料夾下的：audio/bgm1.mp3、audio/bgm2.mp3、audio/bgm3.mp3
+       若您的音檔名稱或格式不同（支援 .mp3 / .wav / .ogg / .m4a），直接修改下方陣列即可。
+       每次「開始戰鬥」時會自動依序輪播：第 1 首 → 第 2 首 → 第 3 首 → 回到第 1 首…
+  ====================================================================== -->
+  <script id="bgm-config">
+    window.BATTLE_BGM_TRACKS = [
+      'audio/bgm1.mp3',
+      'audio/bgm2.mp3',
+      'audio/bgm3.mp3'
+    ];
+    window.BATTLE_BGM_VOLUME = 0.55; // 戰鬥音樂音量（0.0 ～ 1.0）
+  </script>
+  <style>/*__INLINE_CSS__*/</style>
+</head>
+<body>
+  <!-- 3D WebGL Arena + 2D Floating Popups -->
+  <canvas id="c"></canvas>
+  <canvas id="ov"></canvas>
+  <div id="jflash"></div>
+
+  <!-- Combat HUD -->
+  <div id="hud" class="hide">
+    <div id="bars">
+      <div class="side">
+        <div class="nm" id="n0">你的音符劍</div>
+        <div class="bar"><i id="h0"></i></div>
+      </div>
+      <div class="side r">
+        <div class="nm" id="n1">對手</div>
+        <div class="bar"><i id="h1"></i></div>
+      </div>
+    </div>
+    <div id="round">第 1 戰 ・ ⏱️ 45s</div>
+  </div>
+
+  <div id="fightTopBtns" class="hide">
+    <button id="fightBackBtn" class="hudBtn" type="button">＜ 重畫本題</button>
+    <button id="spdBtn" class="hudBtn" type="button">⏩ 1x 速度</button>
+  </div>
+
+  <!-- Manual Controls Overlay -->
+  <div id="ctl">
+    <div id="ctlHint">搖桿或 WASD 移動 ・ 按住 K 格擋（抓準瞬間＝完美格擋！） ・ J 攻擊</div>
+    <div id="stick"><i id="knob"></i></div>
+    <div class="ctlRight">
+      <button id="cBlk" class="cb" type="button">🛡️ 格擋</button>
+      <button id="cAtk" class="cb" type="button">⚔️ 攻擊</button>
+    </div>
+  </div>
+
+  <!-- 3D Character Close-Up Showcase Dock -->
+  <div id="showcaseDock" class="hide">
+    <div id="showcaseLabel">👀 3D 角色細節鑑賞：1P 音符劍士 vs 直笛小學生</div>
+    <div class="showcaseBtns">
+      <button id="scFocusBoth" class="tb on" type="button">全場對峙</button>
+      <button id="scFocusPlayer" class="tb" type="button">特寫主角</button>
+      <button id="scFocusOpp" class="tb" type="button">特寫對手</button>
+      <button id="scPrevOpp" class="tb" type="button">◀</button>
+      <button id="scNextOpp" class="tb" type="button">▶</button>
+      <button id="scClose" class="tb danger" type="button">✕ 返回畫板</button>
+    </div>
+  </div>
+
+  <!-- Main Drawing & Quiz Screen -->
+  <div id="drawScreen">
+    <div id="topBar">
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <button id="bankBtn" class="pillBtn" type="button">🎯 題庫 / 圖鑑</button>
+        <button id="showcaseBtn" class="pillBtn" type="button">👀 鑑賞人物</button>
+        <button id="muteBtn" class="pillBtn" type="button">🔊 音效</button>
+      </div>
+      <div id="stageBadge">🏯 第 1/8 戰：直笛小學生</div>
+    </div>
+
+    <h1 id="heroTitle">塗鴉<span>音符劍豪</span></h1>
+
+    <!-- Quiz Prompt Card (Pure Text by Default, Optional Hint!) -->
+    <div id="quizCard">
+      <div id="quizMainRow">
+        <div id="quizLabelWrap">
+          <span class="qTag">出題</span>
+          <span id="quizPromptName">四分音符</span>
+          <span id="quizBeats">（1 拍）</span>
+        </div>
+        <button id="hintBtn" type="button">💡 偷看提示</button>
+      </div>
+      <div id="hintDrawer">
+        <div id="hintText"></div>
+        <button id="ghostToggleBtn" type="button">👁️ 顯示虛線描紅輔助</button>
+      </div>
+    </div>
+
+    <!-- Drawing Tools -->
+    <div id="tools">
+      <button id="toolThin" class="tb on" type="button">✏️ 細筆</button>
+      <button id="toolThick" class="tb" type="button">🖌️ 粗筆</button>
+      <button id="toolEraser" class="tb" type="button">🧽 橡皮擦</button>
+      <button id="toolUndo" class="tb" type="button">↩️ 復原</button>
+      <button id="toolClear" class="tb danger" type="button">🗑️ 全清</button>
+    </div>
+
+    <!-- 5-Line Staff + Katana Hilt Pad -->
+    <div id="padWrap">
+      <canvas id="pad" width="512" height="512"></canvas>
+    </div>
+
+    <!-- Live Feedback & Blade Spec -->
+    <div id="feedbackBar">請在五線譜上畫出題目指定的符號，及格即可鑄造成 <b>3D 音符神劍</b> 出戰！</div>
+
+    <!-- Bottom CTA Row -->
+    <div id="goRow">
+      <button id="mode2pBtn" class="sideBtn" type="button">雙人對戰</button>
+      <button id="goBtn" type="button" disabled>批改鑄劍！</button>
+    </div>
+  </div>
+
+  <!-- Forged Weapon Stats & Prep Screen -->
+  <div id="prepScreen" class="hide">
+    <button id="pBack" type="button">＜ 返回重畫</button>
+    <div id="passBanner">🎉 判定合格！</div>
+    <div id="pBox">
+      <div id="pTop">
+        <canvas id="pMini" width="192" height="192"></canvas>
+        <div id="pInfo">
+          <div id="pNameRow">
+            <input id="pNameInput" type="text" maxlength="16" aria-label="武器名稱">
+          </div>
+          <div id="pTrait"></div>
+          <div id="pStats"></div>
+        </div>
+      </div>
+      <div id="pMatchupHint"></div>
+
+      <div class="pRow">
+        <div class="pL">得意招式</div>
+        <div class="seg" id="segMove"></div>
+      </div>
+      <div class="pRow">
+        <div class="pL">操作方式</div>
+        <div class="seg" id="segCtl"></div>
+      </div>
+      <div class="pRow">
+        <div class="pL">劍身大小</div>
+        <div class="seg" id="segSize"></div>
+      </div>
+      <div class="pRow" id="rowPlan">
+        <div class="pL">AI 作戰方針</div>
+        <div class="seg" id="segPlan"></div>
+      </div>
+    </div>
+    <button id="pGo" type="button">勝負開始！</button>
+  </div>
+
+  <!-- VS Splash Modal -->
+  <div id="vsModal" class="modalBackdrop">
+    <div class="card">
+      <div class="cardTitle" id="vsTitle">第 1 戰</div>
+      <div id="vsRow">
+        <div class="vc">
+          <canvas id="vsCanvasA" width="220" height="220"></canvas>
+          <div class="vn" id="vsNameA"></div>
+          <div class="vst" id="vsSubA"></div>
+        </div>
+        <div id="vsX">VS</div>
+        <div class="vc">
+          <canvas id="vsCanvasB" width="220" height="220"></canvas>
+          <div class="vn" id="vsNameB"></div>
+          <div class="vst" id="vsSubB"></div>
+        </div>
+      </div>
+      <div id="vsQuote"></div>
+      <button id="vsGoBtn" class="btn btnPrimary" type="button">⚔️ 開打！</button>
+      <button id="vsBackBtn" class="btn btnWhite" type="button">調整能力 / 重畫</button>
+    </div>
+  </div>
+
+  <!-- Stage Win + Symbol Review Modal -->
+  <div id="winModal" class="modalBackdrop">
+    <div class="card">
+      <div class="cardTitle" id="winTitle" style="color:#c2410c;font-size:28px;">🏆 勝利！！</div>
+      <div id="winQuote" style="background:#1b1b22;color:#ffe14d;padding:7px 10px;border-radius:10px;font-weight:800;font-size:13px;"></div>
+      <div id="winStreakInfo" style="font-size:13px;font-weight:900;margin-top:6px;color:#3f3a34;"></div>
+      <div class="reviewBox">
+        <canvas id="winRefCanvas" width="140" height="140"></canvas>
+        <div id="winRefDesc" style="font-size:13px;line-height:1.4;"></div>
+      </div>
+      <button id="winNextBtn" class="btn btnYellow" type="button">➡️ 迎戰下一位對手（抽新題！）</button>
+    </div>
+  </div>
+
+  <!-- Defeat / Grand Clear / 2P Result Modal -->
+  <div id="resultModal" class="modalBackdrop">
+    <div class="card">
+      <div class="cardTitle" id="resTitle" style="color:#c2410c;font-size:25px;">結果</div>
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin:6px 0;">
+        <canvas id="resThumb" width="128" height="128" style="width:74px;height:74px;border:3px solid #1b1b22;border-radius:12px;background:#fffdf6;"></canvas>
+        <div id="resQuote" style="flex:1;background:#1b1b22;color:#ffe14d;padding:8px 10px;border-radius:11px;font-weight:800;font-size:13px;text-align:left;"></div>
+      </div>
+      <div id="resSub" style="font-size:12.5px;font-weight:800;color:#44403c;line-height:1.45;margin:6px 0;"></div>
+
+      <button id="resEndlessBtn" class="btn btnPrimary" type="button">🔥 進入無限連勝道場（第 9 戰 →）</button>
+      <button id="resRematchBtn" class="btn btnYellow" type="button">🔄 用這把劍直接再戰一次</button>
+      <button id="resRedrawBtn" class="btn btnWhite" type="button">✏️ 重新畫音符鑄劍</button>
+      <button id="resRestartGauntletBtn" class="btn btnWhite" type="button">🏯 從第 1 戰重新闖關</button>
+    </div>
+  </div>
+
+  <!-- Question Bank & Music Note Encyclopedia Modal -->
+  <div id="bankModal" class="modalBackdrop">
+    <div class="card cardWide">
+      <button id="bankCloseX" class="closeX" type="button">✕</button>
+      <div class="cardTitle">🎵 題庫設定 ＆ 符號圖鑑</div>
+      <div class="seg" style="margin-bottom:6px;">
+        <button id="tabSettingsBtn" class="on" type="button">🎯 抽題範圍 / 指定練習</button>
+        <button id="tabGuideBtn" type="button">📖 6種符號畫法教學（含解答）</button>
+      </div>
+      <div id="bankContent"></div>
+    </div>
+  </div>
+
+  <script>/*__INLINE_JS__*/</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "doodle-note-kengo",
+  "version": "1.0.0",
+  "description": "塗鴉音符劍豪 — 禹承老師音樂課（五線譜手繪音符辨識 × 3D 道場武器對決）",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.mjs",
+    "test": "node tests/testClassifier.mjs && node tests/testEndToEnd.mjs"
+  },
+  "keywords": [
+    "music-education",
+    "threejs",
+    "game",
+    "musical-notes"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
